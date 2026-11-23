@@ -1,0 +1,263 @@
+# ============================================
+# CurrencyTracker - Configuração de Moedas
+# ============================================
+# Moedas monitoradas pelo sistema
+# Código ISO 4217: https://en.wikipedia.org/wiki/ISO_4217
+
+base_currency: "BRL"
+
+tracked_currencies:
+  # Moedas Principais (Alta Prioridade)
+  - code: "USD"
+    name: "Dólar Americano"
+    symbol: "$"
+    symbol_native: "US$"
+    priority: "high"
+    category: "major"
+    decimal_places: 4
+    sources:
+      - "awesomeapi"
+      - "exchangerate"
+      - "alphavantage"
+      - "twelvedata"
+      - "bcb"
+      - "yahoo"
+
+  - code: "EUR"
+    name: "Euro"
+    symbol: "€"
+    symbol_native: "€"
+    priority: "high"
+    category: "major"
+    decimal_places: 4
+    sources:
+      - "awesomeapi"
+      - "exchangerate"
+      - "alphavantage"
+      - "twelvedata"
+      - "bcb"
+      - "yahoo"
+
+  - code: "GBP"
+    name: "Libra Esterlina"
+    symbol: "£"
+    symbol_native: "£"
+    priority: "high"
+    category: "major"
+    decimal_places: 4
+    sources:
+      - "awesomeapi"
+      - "exchangerate"
+      - "alphavantage"
+      - "twelvedata"
+      - "yahoo"
+
+  - code: "JPY"
+    name: "Iene Japonês"
+    symbol: "¥"
+    symbol_native: "円"
+    priority: "high"
+    category: "major"
+    decimal_places: 2
+    sources:
+      - "awesomeapi"
+      - "exchangerate"
+      - "alphavantage"
+      - "twelvedata"
+      - "yahoo"
+
+  - code: "CHF"
+    name: "Franco Suíço"
+    symbol: "CHF"
+    symbol_native: "CHF"
+    priority: "high"
+    category: "major"
+    decimal_places: 4
+    sources:
+      - "awesomeapi"
+      - "exchangerate"
+      - "alphavantage"
+      - "yahoo"
+
+  # Moedas dos BRICS
+  - code: "CNY"
+    name: "Yuan Chinês"
+    symbol: "¥"
+    symbol_native: "元"
+    priority: "high"
+    category: "brics"
+    decimal_places: 4
+    sources:
+      - "awesomeapi"
+      - "exchangerate"
+      - "alphavantage"
+      - "yahoo"
+
+  - code: "INR"
+    name: "Rúpia Indiana"
+    symbol: "₹"
+    symbol_native: "₹"
+    priority: "medium"
+    category: "brics"
+    decimal_places: 2
+    sources:
+      - "exchangerate"
+      - "alphavantage"
+      - "yahoo"
+
+  - code: "ZAR"
+    name: "Rand Sul-Africano"
+    symbol: "R"
+    symbol_native: "R"
+    priority: "medium"
+    category: "brics"
+    decimal_places: 4
+    sources:
+      - "exchangerate"
+      - "alphavantage"
+      - "yahoo"
+
+  # Moedas Latino-Americanas
+  - code: "ARS"
+    name: "Peso Argentino"
+    symbol: "$"
+    symbol_native: "$"
+    priority: "high"
+    category: "latam"
+    decimal_places: 2
+    volatility: "very_high"
+    sources:
+      - "awesomeapi"
+      - "exchangerate"
+      - "yahoo"
+      - "investing"
+
+  - code: "CLP"
+    name: "Peso Chileno"
+    symbol: "$"
+    symbol_native: "$"
+    priority: "medium"
+    category: "latam"
+    decimal_places: 0
+    sources:
+      - "awesomeapi"
+      - "exchangerate"
+      - "yahoo"
+
+  - code: "COP"
+    name: "Peso Colombiano"
+    symbol: "$"
+    symbol_native: "$"
+    priority: "medium"
+    category: "latam"
+    decimal_places: 0
+    sources:
+      - "awesomeapi"
+      - "exchangerate"
+      - "yahoo"
+
+  - code: "MXN"
+    name: "Peso Mexicano"
+    symbol: "$"
+    symbol_native: "$"
+    priority: "high"
+    category: "latam"
+    decimal_places: 4
+    sources:
+      - "awesomeapi"
+      - "exchangerate"
+      - "alphavantage"
+      - "yahoo"
+
+  # Outras Moedas Relevantes
+  - code: "RUB"
+    name: "Rublo Russo"
+    symbol: "₽"
+    symbol_native: "₽"
+    priority: "high"
+    category: "emerging"
+    decimal_places: 4
+    volatility: "high"
+    sources:
+      - "awesomeapi"
+      - "exchangerate"
+      - "alphavantage"
+      - "yahoo"
+
+  - code: "AUD"
+    name: "Dólar Australiano"
+    symbol: "$"
+    symbol_native: "$"
+    priority: "medium"
+    category: "major"
+    decimal_places: 4
+    sources:
+      - "awesomeapi"
+      - "exchangerate"
+      - "alphavantage"
+      - "yahoo"
+
+  - code: "CAD"
+    name: "Dólar Canadense"
+    symbol: "$"
+    symbol_native: "$"
+    priority: "medium"
+    category: "major"
+    decimal_places: 4
+    sources:
+      - "awesomeapi"
+      - "exchangerate"
+      - "alphavantage"
+      - "yahoo"
+
+  # Moedas Adicionais (opcional)
+  - code: "TRY"
+    name: "Lira Turca"
+    symbol: "₺"
+    symbol_native: "₺"
+    priority: "low"
+    category: "emerging"
+    decimal_places: 4
+    volatility: "very_high"
+    sources:
+      - "exchangerate"
+      - "yahoo"
+
+  - code: "BRL"
+    name: "Real Brasileiro"
+    symbol: "R$"
+    symbol_native: "R$"
+    priority: "base"
+    category: "base"
+    decimal_places: 4
+    is_base: true
+
+# Configurações de coleta
+collection:
+  interval_seconds: 60
+  timeout_seconds: 30
+  max_retries: 3
+  retry_delay_seconds: 5
+  batch_size: 50
+
+# Configurações de validação
+validation:
+  max_spread_percent: 5.0
+  min_rate: 0.0001
+  max_rate_change_percent: 50.0
+  outlier_detection: true
+  outlier_method: "iqr"
+  outlier_threshold: 1.5
+
+# Configurações de armazenamento
+storage:
+  postgres:
+    table_prefix: "currency_"
+    partition_by_month: true
+  influxdb:
+    measurement: "exchange_rates"
+    retention_policy: "autogen"
+    shard_duration: "7d"
+  redis:
+    key_prefix: "currency:"
+    ttl_seconds: 300

@@ -1,0 +1,60 @@
+# ============================================
+# CurrencyTracker - Development Dependencies
+# ============================================
+
+# Testing
+pytest>=7.4
+pytest-asyncio>=0.23
+pytest-cov>=4.1
+pytest-mock>=3.12
+pytest-xdist>=3.5
+pytest-timeout>=2.2
+pytest-html>=4.1
+
+# Code Quality
+black>=23.12
+ruff>=0.1.15
+mypy>=1.8
+pre-commit>=3.6
+
+# Type Stubs
+types-requests>=2.31
+types-pyyaml>=6.0
+types-python-dateutil>=2.8
+
+# Security
+bandit>=1.7
+safety>=2.3
+
+# Documentation
+mkdocs>=1.5
+mkdocs-material>=9.5
+mkdocstrings[python]>=0.24
+
+# Development Tools
+ipython>=8.18
+jupyter>=1.0
+jupyterlab>=4.0
+notebook>=7.0
+
+# Debugging
+debugpy>=1.8
+py-spy>=0.3
+
+# Profiling
+pyinstrument>=4.6
+snakeviz>=2.2
+
+# Database
+alembic>=1.13
+psycopg2-binary>=2.9
+
+# Async
+aioredis>=2.0
+asyncpg>=0.29
+
+# Utilities
+python-dotenv>=1.0
+click>=8.1
+rich>=13.7
+typer>=0.9

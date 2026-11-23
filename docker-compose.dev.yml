@@ -1,0 +1,151 @@
+version: '3.8'
+
+# ============================================
+# CurrencyTracker - Development Overrides
+# ============================================
+
+services:
+  # --------------------------------------------
+  # API - Development mode with hot reload
+  # --------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    command: uvicorn currency_tracker.api.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/currency_tracker
+    volumes:
+      - ./currency_tracker:/app/currency_tracker:ro
+      - ./config:/app/config:ro
+      - ./scripts:/app/scripts:ro
+    environment:
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+      - ENABLE_API_DOCS=true
+    ports:
+      - "8000:8000"
+    # Override resource limits for dev
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+
+  # --------------------------------------------
+  # Collector - Development mode
+  # --------------------------------------------
+  collector:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    command: python -m currency_tracker.collector.scheduler
+    volumes:
+      - ./currency_tracker:/app/currency_tracker:ro
+      - ./config:/app/config:ro
+    environment:
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+      - COLLECTION_INTERVAL_SECONDS=30  # Faster for dev
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  # --------------------------------------------
+  # ML Trainer - Development mode
+  # --------------------------------------------
+  ml-trainer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    command: python -m currency_tracker.ml.training.scheduler
+    volumes:
+      - ./currency_tracker:/app/currency_tracker:ro
+      - ./config:/app/config:ro
+      - ml_models:/app/models
+    environment:
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+      - RETRAIN_INTERVAL_HOURS=1  # Faster for dev
+    deploy:
+      resources:
+        limits:
+          memory: 3G
+
+  # --------------------------------------------
+  # Dashboard - Development mode
+  # --------------------------------------------
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    command: streamlit run currency_tracker/dashboard/app.py --server.port=8501 --server.address=0.0.0.0 --server.runOnSave=true
+    volumes:
+      - ./currency_tracker:/app/currency_tracker:ro
+      - ./config:/app/config:ro
+    environment:
+      - DEBUG=true
+    ports:
+      - "8501:8501"
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  # --------------------------------------------
+  # Additional Dev Tools
+  # --------------------------------------------
+  # Jupyter Lab for experimentation
+  jupyter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    command: jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''
+    volumes:
+      - ./currency_tracker:/app/currency_tracker:ro
+      - ./config:/app/config:ro
+      - ./notebooks:/app/notebooks
+    ports:
+      - "8888:8888"
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+    profiles:
+      - dev-tools
+
+  # pgAdmin for database management
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: currency-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@currencytracker.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    profiles:
+      - dev-tools
+
+  # Redis Commander for cache inspection
+  redis-commander:
+    image: ghcr.io/joeferner/redis-commander:latest
+    container_name: currency-redis-commander
+    environment:
+      REDIS_HOSTS: local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    profiles:
+      - dev-tools
+
+volumes:
+  pgadmin_data:

@@ -1,0 +1,411 @@
+version: '3.8'
+
+services:
+  # --------------------------------------------
+  # PostgreSQL - Dados relacionais (moedas, alertas, usuários, modelos)
+  # --------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: currency-postgres
+    environment:
+      POSTGRES_DB: currency_tracker
+      POSTGRES_USER: currency_user
+      POSTGRES_PASSWORD: currency_pass
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U currency_user -d currency_tracker"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - currency-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # --------------------------------------------
+  # InfluxDB - Time Series Data (taxas históricas, predições)
+  # --------------------------------------------
+  influxdb:
+    image: influxdb:2.7-alpine
+    container_name: currency-influxdb
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: adminpassword
+      DOCKER_INFLUXDB_INIT_ORG: currency-tracker
+      DOCKER_INFLUXDB_INIT_BUCKET: rates
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: meu-token-influxdb-super-secreto
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+      - influxdb_config:/etc/influxdb2
+    ports:
+      - "8086:8086"
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - currency-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  # --------------------------------------------
+  # Redis - Cache, Celery Broker, Rate Limiting
+  # --------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: currency-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - currency-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  # --------------------------------------------
+  # MLflow - Experiment Tracking & Model Registry
+  # --------------------------------------------
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.9.0
+    container_name: currency-mlflow
+    command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri postgresql://mlflow:mlflow@postgres:5432/mlflow --default-artifact-root s3://mlflow-artifacts
+    environment:
+      MLFLOW_TRACKING_URI: http://localhost:5000
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+    ports:
+      - "5000:5000"
+    depends_on:
+      - postgres
+      - minio
+    networks:
+      - currency-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  # --------------------------------------------
+  # MinIO - S3-compatible storage for MLflow artifacts
+  # --------------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: currency-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - currency-network
+
+  # --------------------------------------------
+  # API - FastAPI Application
+  # --------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api
+    container_name: currency-api
+    command: uvicorn currency_tracker.api.main:app --host 0.0.0.0 --port 8000 --workers 4
+    environment:
+      - DATABASE_URL=postgresql://currency_user:currency_pass@postgres:5432/currency_tracker
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_TOKEN=meu-token-influxdb-super-secreto
+      - INFLUXDB_ORG=currency-tracker
+      - INFLUXDB_BUCKET=rates
+      - REDIS_URL=redis://redis:6379/0
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mlflow:
+        condition: service_started
+    networks:
+      - currency-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+    volumes:
+      - ./currency_tracker:/app/currency_tracker:ro
+      - ./config:/app/config:ro
+
+  # --------------------------------------------
+  # Collector - Data Collection Service
+  # --------------------------------------------
+  collector:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: collector
+    container_name: currency-collector
+    command: python -m currency_tracker.collector.scheduler
+    environment:
+      - DATABASE_URL=postgresql://currency_user:currency_pass@postgres:5432/currency_tracker
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_TOKEN=meu-token-influxdb-super-secreto
+      - INFLUXDB_ORG=currency-tracker
+      - INFLUXDB_BUCKET=rates
+      - REDIS_URL=redis://redis:6379/0
+      - AWESOME_API_URL=https://economia.awesomeapi.com.br
+      - EXCHANGE_RATE_API_URL=https://v6.exchangerate-api.com/v6
+      - ALPHA_VANTAGE_API_URL=https://www.alphavantage.co/query
+      - BCB_API_URL=https://api.bcb.gov.br/dados/serie/bcdata.sgs
+      - COLLECTION_INTERVAL_SECONDS=60
+      - BASE_CURRENCY=BRL
+      - TRACKED_CURRENCIES=USD,EUR,GBP,JPY,RUB,ARS,CLP,COP,MXN,CNY,INR,ZAR,AUD,CAD,CHF
+    depends_on:
+      postgres:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - currency-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    volumes:
+      - ./currency_tracker:/app/currency_tracker:ro
+      - ./config:/app/config:ro
+
+  # --------------------------------------------
+  # ML Trainer - Model Training Service
+  # --------------------------------------------
+  ml-trainer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: ml-trainer
+    container_name: currency-ml-trainer
+    command: python -m currency_tracker.ml.training.scheduler
+    environment:
+      - DATABASE_URL=postgresql://currency_user:currency_pass@postgres:5432/currency_tracker
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_TOKEN=meu-token-influxdb-super-secreto
+      - INFLUXDB_ORG=currency-tracker
+      - INFLUXDB_BUCKET=rates
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - MODEL_REGISTRY_PATH=/app/models/registry
+      - RETRAIN_INTERVAL_HOURS=24
+      - MIN_TRAINING_SAMPLES=100
+      - DEFAULT_PREDICTION_HORIZON_DAYS=7
+    depends_on:
+      postgres:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
+      mlflow:
+        condition: service_started
+    networks:
+      - currency-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+    volumes:
+      - ./currency_tracker:/app/currency_tracker:ro
+      - ./config:/app/config:ro
+      - ml_models:/app/models
+
+  # --------------------------------------------
+  # Alerts - Alert Processing Service
+  # --------------------------------------------
+  alerts:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: alerts
+    container_name: currency-alerts
+    command: python -m currency_tracker.alerts.scheduler
+    environment:
+      - DATABASE_URL=postgresql://currency_user:currency_pass@postgres:5432/currency_tracker
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_TOKEN=meu-token-influxdb-super-secreto
+      - INFLUXDB_ORG=currency-tracker
+      - INFLUXDB_BUCKET=rates
+      - REDIS_URL=redis://redis:6379/0
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+      - EMAIL_SMTP_HOST=${EMAIL_SMTP_HOST}
+      - EMAIL_SMTP_PORT=${EMAIL_SMTP_PORT}
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
+      - ALERT_WEBHOOK_URL=${ALERT_WEBHOOK_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - currency-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+    volumes:
+      - ./currency_tracker:/app/currency_tracker:ro
+      - ./config:/app/config:ro
+
+  # --------------------------------------------
+  # Dashboard - Streamlit Frontend
+  # --------------------------------------------
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dashboard
+    container_name: currency-dashboard
+    command: streamlit run currency_tracker/dashboard/app.py --server.port=8501 --server.address=0.0.0.0
+    environment:
+      - DATABASE_URL=postgresql://currency_user:currency_pass@postgres:5432/currency_tracker
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_TOKEN=meu-token-influxdb-super-secreto
+      - INFLUXDB_ORG=currency-tracker
+      - INFLUXDB_BUCKET=rates
+      - API_BASE_URL=http://api:8000
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+    networks:
+      - currency-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+    volumes:
+      - ./currency_tracker:/app/currency_tracker:ro
+      - ./config:/app/config:ro
+
+  # --------------------------------------------
+  # Prometheus - Metrics Collection
+  # --------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: currency-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - currency-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # --------------------------------------------
+  # Grafana - Visualization
+  # --------------------------------------------
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: currency-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - currency-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+networks:
+  currency-network:
+    driver: bridge
+    name: currency-tracker-network
+
+volumes:
+  postgres_data:
+  influxdb_data:
+  influxdb_config:
+  redis_data:
+  minio_data:
+  ml_models:
+  prometheus_data:
+  grafana_data:

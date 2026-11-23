@@ -1,0 +1,96 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'currency-tracker'
+    environment: 'production'
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+rule_files: []
+
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # FastAPI Application
+  - job_name: 'currency-api'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['api:8000']
+        labels:
+          service: 'currency-api'
+    scrape_interval: 30s
+
+  # Collector Service
+  - job_name: 'currency-collector'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['collector:8001']
+        labels:
+          service: 'currency-collector'
+    scrape_interval: 30s
+
+  # ML Trainer Service
+  - job_name: 'currency-ml-trainer'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['ml-trainer:8002']
+        labels:
+          service: 'currency-ml-trainer'
+    scrape_interval: 60s
+
+  # Alerts Service
+  - job_name: 'currency-alerts'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['alerts:8003']
+        labels:
+          service: 'currency-alerts'
+    scrape_interval: 60s
+
+  # PostgreSQL Exporter
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          service: 'postgres'
+    scrape_interval: 30s
+
+  # Redis Exporter
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          service: 'redis'
+    scrape_interval: 30s
+
+  # InfluxDB
+  - job_name: 'influxdb'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['influxdb:8086']
+        labels:
+          service: 'influxdb'
+    scrape_interval: 30s
+
+  # Node Exporter (host metrics)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'node'
+    scrape_interval: 30s
+
+  # cAdvisor (container metrics)
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          service: 'cadvisor'
+    scrape_interval: 30s

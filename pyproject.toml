@@ -1,0 +1,120 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "currency-tracker"
+version = "0.1.0"
+description = "Sistema de monitoramento e previsão de taxas de câmbio em tempo real"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Seu Nome", email = "seu@email.com"}
+]
+requires-python = ">=3.11"
+dependencies = [
+    # Core
+    "pydantic>=2.5",
+    "pydantic-settings>=2.1",
+    "python-dotenv>=1.0",
+    "pyyaml>=6.0",
+    # Async & HTTP
+    "httpx>=0.26",
+    "aiohttp>=3.9",
+    "websockets>=12.0",
+    # Data Processing
+    "pandas>=2.1",
+    "numpy>=1.26",
+    "polars>=0.19",
+    # Database
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    "asyncpg>=0.29",
+    "influxdb-client>=1.38",
+    "redis>=5.0",
+    # ML
+    "scikit-learn>=1.3",
+    "xgboost>=2.0",
+    "lightgbm>=4.1",
+    "prophet>=1.1",
+    "torch>=2.1",
+    "tensorflow>=2.15",
+    "statsmodels>=0.14",
+    "mlflow>=2.9",
+    # API
+    "fastapi>=0.108",
+    "uvicorn>=0.25",
+    "fastapi-cache2>=0.2",
+    # Dashboard
+    "streamlit>=1.30",
+    "plotly>=5.18",
+    # Scheduling
+    "apscheduler>=3.10",
+    "celery>=5.3",
+    # Monitoring
+    "prometheus-client>=0.19",
+    "structlog>=24.1",
+    # Utils
+    "tenacity>=8.2",
+    "python-dateutil>=2.8",
+    "pytz>=2024.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=4.1",
+    "pytest-mock>=3.12",
+    "black>=23.12",
+    "ruff>=0.1.15",
+    "mypy>=1.8",
+    "pre-commit>=3.6",
+]
+dashboard = [
+    "streamlit>=1.30",
+    "plotly>=5.18",
+    "streamlit-option-menu>=0.3",
+    "streamlit-echarts>=0.1",
+]
+ml = [
+    "optuna>=3.5",
+    "shap>=0.44",
+    "hyperopt>=0.2",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["currency_tracker*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM", "T20"]
+ignore = ["E501", "B008"]
+exclude = [".venv", "dist", "build"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["currency_tracker"]
+omit = ["tests/*", "*/migrations/*"]
+
+[tool.alembic]
+script_location = "currency_tracker/storage/migrations"
