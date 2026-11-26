@@ -1,31 +1,9 @@
-# ============================================
-# CurrencyTracker - Source Factory
-# ============================================
-
 from typing import Dict, List, Optional, Type
-from currency_tracker.collector.sources import (
-    BaseSource,
-    AwesomeAPISource,
-    ExchangeRateAPISource,
-    AlphaVantageSource,
-    BCBSource,
-    YahooFinanceSource,
-    TwelveDataSource,
-)
+from currency_tracker.collector.sources import BaseSource, AwesomeAPISource, ExchangeRateAPISource, AlphaVantageSource, BCBSource, YahooFinanceSource, TwelveDataSource
 from currency_tracker.config.settings import get_settings, get_currency_config
 
-
 class SourceFactory:
-    """Factory para criar e gerenciar fontes de dados"""
-
-    _source_classes: Dict[str, Type[BaseSource]] = {
-        "awesomeapi": AwesomeAPISource,
-        "exchangerate": ExchangeRateAPISource,
-        "alphavantage": AlphaVantageSource,
-        "bcb": BCBSource,
-        "yahoo": YahooFinanceSource,
-        "twelvedata": TwelveDataSource,
-    }
+    _source_classes: Dict[str, Type[BaseSource]] = {'awesomeapi': AwesomeAPISource, 'exchangerate': ExchangeRateAPISource, 'alphavantage': AlphaVantageSource, 'bcb': BCBSource, 'yahoo': YahooFinanceSource, 'twelvedata': TwelveDataSource}
 
     def __init__(self):
         self.settings = get_settings()
@@ -33,49 +11,38 @@ class SourceFactory:
         self._instances: Dict[str, BaseSource] = {}
 
     def create_source(self, name: str) -> Optional[BaseSource]:
-        """Cria uma instância de fonte pelo nome"""
         if name in self._instances:
             return self._instances[name]
-
         source_class = self._source_classes.get(name.lower())
         if not source_class:
             return None
-
-        # Configura API keys baseado no nome
-        api_key = ""
-        if name == "awesomeapi":
+        api_key = ''
+        if name == 'awesomeapi':
             api_key = self.settings.api_keys.awesome_api_key
-        elif name == "exchangerate":
+        elif name == 'exchangerate':
             api_key = self.settings.api_keys.exchange_rate_api_key
-        elif name == "alphavantage":
+        elif name == 'alphavantage':
             api_key = self.settings.api_keys.alpha_vantage_api_key
-        elif name == "twelvedata":
+        elif name == 'twelvedata':
             api_key = self.settings.api_keys.twelve_data_api_key
-
         instance = source_class(api_key=api_key)
         self._instances[name] = instance
         return instance
 
     def get_sources_for_currency(self, currency: str) -> List[BaseSource]:
-        """Retorna fontes configuradas para uma moeda"""
         sources = []
         currency_info = self.currency_config.get_currency(currency)
-
         if currency_info:
-            source_names = currency_info.get("sources", [])
+            source_names = currency_info.get('sources', [])
         else:
-            # Fallback: todas as fontes disponíveis
             source_names = list(self._source_classes.keys())
-
         for name in source_names:
             source = self.create_source(name)
             if source:
                 sources.append(source)
-
         return sources
 
     def get_all_sources(self) -> List[BaseSource]:
-        """Retorna todas as fontes disponíveis"""
         sources = []
         for name in self._source_classes:
             source = self.create_source(name)
@@ -84,16 +51,11 @@ class SourceFactory:
         return sources
 
     def get_source(self, name: str) -> Optional[BaseSource]:
-        """Retorna instância existente ou cria nova"""
         return self._instances.get(name) or self.create_source(name)
 
     async def close_all(self):
-        """Fecha todas as conexões"""
         for source in self._instances.values():
             if hasattr(source, 'close'):
                 await source.close()
         self._instances.clear()
-
-
-# Instância global
 source_factory = SourceFactory()

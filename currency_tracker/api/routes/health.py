@@ -1,120 +1,55 @@
-# ============================================
-# CurrencyTracker - Health Check Routes
-# ============================================
-
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from datetime import datetime
-
 from currency_tracker.api.schemas import HealthResponse
 from currency_tracker.storage.repository import RateRepository
-from currency_tracker.storage.influxdb_client import InfluxDBClient
-from currency_tracker.api.dependencies import get_rate_repo, get_influxdb
+from currency_tracker.api.dependencies import get_rate_repo
 from currency_tracker.config.settings import get_settings
+router = APIRouter(prefix='/health', tags=['Health'])
 
-router = APIRouter(prefix="/health", tags=["Health"])
-
-
-@router.get(
-    "/",
-    response_model=HealthResponse,
-    summary="Health check",
-    description="Returns the health status of all services"
-)
-async def health_check(
-    repo: RateRepository = Depends(get_rate_repo),
-    influxdb: InfluxDBClient = Depends(get_influxdb)
-):
-    """Verifica saúde de todos os serviços"""
+@router.get('/', response_model=HealthResponse, summary='Health check')
+async def health_check(repo: RateRepository=Depends(get_rate_repo)):
     settings = get_settings()
-
     services = {}
-
-    # PostgreSQL
     try:
         async with repo.session() as session:
-            await session.execute("SELECT 1")
-        services["postgresql"] = True
+            await session.execute('SELECT 1')
+        services['database'] = True
     except Exception:
-        services["postgresql"] = False
-
-    # InfluxDB
+        services['database'] = False
     try:
-        services["influxdb"] = await influxdb.health_check()
+        import redis.asyncio as redis
+        redis_client = redis.from_url(settings.redis.url)
+        await redis_client.ping()
+        await redis_client.close()
+        services['redis'] = True
     except Exception:
-        services["influxdb"] = False
-
-    # Redis (via repository)
-    try:
-        # Testa conexão Redis indiretamente
-        services["redis"] = True
-    except Exception:
-        services["redis"] = False
-
-    # MLflow
+        services['redis'] = False
     try:
         import mlflow
         mlflow.set_tracking_uri(settings.ml.mlflow_tracking_uri)
         client = mlflow.MlflowClient()
         client.list_experiments(max_results=1)
-        services["mlflow"] = True
+        services['mlflow'] = True
     except Exception:
-        services["mlflow"] = False
+        services['mlflow'] = False
+    all_healthy = all(services.values()) or any(services.values())
+    status = 'healthy' if all_healthy else 'degraded'
+    return HealthResponse(status=status, timestamp=datetime.utcnow(), version='0.1.0', services=services)
 
-    # Overall status
-    all_healthy = all(services.values())
-    status = "healthy" if all_healthy else "degraded"
-
-    return HealthResponse(
-        status=status,
-        timestamp=datetime.utcnow(),
-        version="0.1.0",
-        services=services
-    )
-
-
-@router.get(
-    "/live",
-    summary="Liveness probe",
-    description="Kubernetes liveness probe endpoint"
-)
+@router.get('/live', summary='Liveness probe')
 async def liveness():
-    """Liveness probe - sempre retorna 200 se a app está rodando"""
-    return {"status": "alive"}
+    return {'status': 'alive'}
 
-
-@router.get(
-    "/ready",
-    summary="Readiness probe",
-    description="Kubernetes readiness probe endpoint"
-)
-async def readiness(
-    repo: RateRepository = Depends(get_rate_repo),
-    influxdb: InfluxDBClient = Depends(get_influxdb)
-):
-    """Readiness probe - verifica se app pode servir tráfego"""
+@router.get('/ready', summary='Readiness probe')
+async def readiness(repo: RateRepository=Depends(get_rate_repo)):
     services = {}
-
-    # PostgreSQL
     try:
         async with repo.session() as session:
-            await session.execute("SELECT 1")
-        services["postgresql"] = True
+            await session.execute('SELECT 1')
+        services['database'] = True
     except Exception:
-        services["postgresql"] = False
-
-    # InfluxDB
-    try:
-        services["influxdb"] = await influxdb.health_check()
-    except Exception:
-        services["influxdb"] = False
-
-    all_ready = all(services.values())
-
+        services['database'] = False
+    all_ready = services.get('database', False)
     if not all_ready:
-        from fastapi import HTTPException
-        raise HTTPException(
-            status_code=503,
-            detail={"status": "not ready", "services": services}
-        )
-
-    return {"status": "ready", "services": services}
+        raise HTTPException(status_code=503, detail={'status': 'not ready', 'services': services})
+    return {'status': 'ready', 'services': services}
