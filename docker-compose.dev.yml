@@ -1,13 +1,6 @@
 version: '3.8'
 
-# ============================================
-# CurrencyTracker - Development Overrides
-# ============================================
-
 services:
-  # --------------------------------------------
-  # API - Development mode with hot reload
-  # --------------------------------------------
   api:
     build:
       context: .
@@ -23,8 +16,7 @@ services:
       - LOG_LEVEL=DEBUG
       - ENABLE_API_DOCS=true
     ports:
-      - "8000:8000"
-    # Override resource limits for dev
+      - "${API_PORT}:8000"
     deploy:
       resources:
         limits:
@@ -32,9 +24,6 @@ services:
         reservations:
           memory: 1G
 
-  # --------------------------------------------
-  # Collector - Development mode
-  # --------------------------------------------
   collector:
     build:
       context: .
@@ -47,15 +36,12 @@ services:
     environment:
       - DEBUG=true
       - LOG_LEVEL=DEBUG
-      - COLLECTION_INTERVAL_SECONDS=30  # Faster for dev
+      - COLLECTION_INTERVAL_SECONDS=30
     deploy:
       resources:
         limits:
           memory: 1G
 
-  # --------------------------------------------
-  # ML Trainer - Development mode
-  # --------------------------------------------
   ml-trainer:
     build:
       context: .
@@ -69,37 +55,33 @@ services:
     environment:
       - DEBUG=true
       - LOG_LEVEL=DEBUG
-      - RETRAIN_INTERVAL_HOURS=1  # Faster for dev
+      - RETRAIN_INTERVAL_HOURS=1
     deploy:
       resources:
         limits:
           memory: 3G
 
-  # --------------------------------------------
-  # Dashboard - Development mode
-  # --------------------------------------------
-  dashboard:
+  frontend:
     build:
-      context: .
+      context: ./frontend
       dockerfile: Dockerfile
       target: dev
-    command: streamlit run currency_tracker/dashboard/app.py --server.port=8501 --server.address=0.0.0.0 --server.runOnSave=true
+    container_name: currency-frontend-dev
     volumes:
-      - ./currency_tracker:/app/currency_tracker:ro
-      - ./config:/app/config:ro
+      - ./frontend:/app
+      - /app/node_modules
     environment:
-      - DEBUG=true
+      - VITE_API_URL=http://api:8000/api/v1
+      - CHOKIDAR_USEPOLLING=true
     ports:
-      - "8501:8501"
+      - "${FRONTEND_PORT}:3000"
+    depends_on:
+      - api
     deploy:
       resources:
         limits:
-          memory: 2G
+          memory: 1G
 
-  # --------------------------------------------
-  # Additional Dev Tools
-  # --------------------------------------------
-  # Jupyter Lab for experimentation
   jupyter:
     build:
       context: .
@@ -111,13 +93,12 @@ services:
       - ./config:/app/config:ro
       - ./notebooks:/app/notebooks
     ports:
-      - "8888:8888"
+      - "${JUPYTER_PORT}:8888"
     environment:
       - JUPYTER_ENABLE_LAB=yes
     profiles:
       - dev-tools
 
-  # pgAdmin for database management
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: currency-pgadmin
@@ -126,7 +107,7 @@ services:
       PGADMIN_DEFAULT_PASSWORD: admin
       PGADMIN_CONFIG_SERVER_MODE: 'False'
     ports:
-      - "5050:80"
+      - "${PGADMIN_PORT}:80"
     volumes:
       - pgadmin_data:/var/lib/pgadmin
     depends_on:
@@ -134,14 +115,13 @@ services:
     profiles:
       - dev-tools
 
-  # Redis Commander for cache inspection
   redis-commander:
     image: ghcr.io/joeferner/redis-commander:latest
     container_name: currency-redis-commander
     environment:
       REDIS_HOSTS: local:redis:6379
     ports:
-      - "8081:8081"
+      - "${REDIS_COMMANDER_PORT}:8081"
     depends_on:
       - redis
     profiles:
