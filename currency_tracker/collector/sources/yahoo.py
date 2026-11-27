@@ -1,10 +1,8 @@
 import yfinance as yf
 from typing import List, Dict, Any, Optional
 from decimal import Decimal
-from datetime import datetime, timedelta
-import pandas as pd
+from datetime import datetime
 from .base import BaseSource, ExchangeRate, CollectionResult, RateType
-from currency_tracker.config.settings import get_settings
 
 class YahooFinanceSource(BaseSource):
     CURRENCY_MAP = {'USD': 'USD', 'EUR': 'EUR', 'GBP': 'GBP', 'JPY': 'JPY', 'CHF': 'CHF', 'CAD': 'CAD', 'AUD': 'AUD', 'CNY': 'CNY', 'INR': 'INR', 'ZAR': 'ZAR', 'MXN': 'MXN', 'ARS': 'ARS', 'CLP': 'CLP', 'COP': 'COP', 'RUB': 'RUB', 'TRY': 'TRY'}
@@ -57,9 +55,6 @@ class YahooFinanceSource(BaseSource):
             errors.append(f'Unexpected error: {str(e)}')
         duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
         return CollectionResult(success=len(errors) == 0, rates=rates, errors=errors, source=self.name, duration_ms=duration_ms, timestamp=datetime.utcnow())
-
-    def parse_response(self, response: Dict[str, Any], base: str, quotes: List[str]) -> List[ExchangeRate]:
-        return []
 
     async def fetch_historical(self, base: str, quote: str, period: str='1mo', interval: str='1d') -> List[ExchangeRate]:
         rates = []
